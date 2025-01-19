@@ -10,6 +10,4 @@ public class ImageUploadApplication {
 		SpringApplication.run(ImageUploadApplication.class, args);
 	}
 
-
-
 }
