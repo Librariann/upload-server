@@ -39,5 +39,6 @@ out/
 .vscode/
 
 CLAUDE.md
+gradle.properties
 
 
