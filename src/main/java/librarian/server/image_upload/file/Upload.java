@@ -1,5 +1,6 @@
 package librarian.server.image_upload.file;
 
+import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +10,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -69,4 +71,51 @@ public class Upload {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+    @PostMapping("/image/profile")
+    public ResponseEntity<Map<String, String>> uploadProfileImage(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "파일이 비어있습니다.");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // 이미지 리사이징 (프로필용: 200x200)
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            Thumbnails.of(file.getInputStream())
+                    .size(200, 200)
+                    .outputFormat("jpg")
+                    .outputQuality(0.8)
+                    .toOutputStream(outputStream);
+
+            byte[] resizedImageBytes = outputStream.toByteArray();
+
+            String fileName = UUID.randomUUID().toString() + "_profile.jpg";
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName)
+                    .contentType("image/jpeg")
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(resizedImageBytes));
+
+            String publicUrl = String.format("https://%s.s3.%s.amazonaws.com/%s",
+                    bucketName, region, fileName);
+
+            Map<String, String> result = new HashMap<>();
+            result.put("message", "파일 업로드 성공");
+            result.put("fileName", fileName);
+            result.put("url", publicUrl);
+
+            return ResponseEntity.ok(result);
+
+        } catch (IOException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "파일 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
 }
